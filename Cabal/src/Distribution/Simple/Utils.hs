@@ -173,6 +173,9 @@ module Distribution.Simple.Utils (
         -- * FilePath stuff
         isAbsoluteOnAnyPlatform,
         isRelativeOnAnyPlatform,
+
+        -- * concurrency tools
+        sequenceConcurrentlyBounded_,
   ) where
 
 import Prelude ()
@@ -204,9 +207,10 @@ import qualified Paths_Cabal (version)
 import Distribution.Pretty
 import Distribution.Parsec
 
+import qualified Data.ByteString.Lazy as BS
+import Data.Traversable
 import Data.Typeable
     ( cast )
-import qualified Data.ByteString.Lazy as BS
 
 import System.Directory
     ( Permissions(executable), getDirectoryContents, getPermissions
@@ -224,6 +228,7 @@ import System.IO
 import System.IO.Error
 import System.IO.Unsafe
     ( unsafeInterleaveIO )
+import Control.Concurrent
 import qualified Control.Exception as Exception
 
 import Foreign.C.Error (Errno (..), ePIPE)
@@ -1618,3 +1623,23 @@ findHookedPackageDesc verbosity dir = do
 
 buildInfoExt  :: String
 buildInfoExt = ".buildinfo"
+
+sequenceConcurrentlyBounded_ :: Int -> [IO a] -> IO ()
+sequenceConcurrentlyBounded_ n xs = do
+    sem <- newQSem (n - 1)
+    Exception.mask $ \restore -> do
+      tid <- myThreadId
+      let 
+        catchForMe x = Exception.catches x
+          [ Exception.Handler $ \e@(Exception.SomeAsyncException _) -> throwIO e
+          , Exception.Handler $ \e@(SomeException _) -> Exception.throwTo tid e
+          ]
+      resultvars <- forM xs $ \x -> do
+        var <- newEmptyMVar
+        _tid <- forkIO $ Exception.bracket_ (waitQSem sem) (signalQSem sem) $ catchForMe $ do
+          res <- restore x
+          True <- tryPutMVar var res
+          return ()
+        return var
+      Exception.bracket_ (signalQSem sem) (waitQSem sem) (traverse_ takeMVar resultvars)
+

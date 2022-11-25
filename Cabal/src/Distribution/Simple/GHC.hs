@@ -110,7 +110,7 @@ import Distribution.Utils.NubList
 import Distribution.Utils.Path
 import Language.Haskell.Extension
 
-import Control.Monad (msum, forM_)
+import Control.Monad 
 import Data.Char (isLower)
 import qualified Data.Map as Map
 import System.Directory
@@ -524,6 +524,7 @@ buildOrReplLib mReplFlags verbosity numJobs pkg_descr lbi lib clbi = do
       implInfo  = getImplInfo comp
       platform@(Platform _hostArch hostOS) = hostPlatform lbi
       has_code = not (componentIsIndefinite clbi)
+      jobsSequence_ = maybe sequence_ (sequenceConcurrentlyBounded_ . max 1) (join (flagToMaybe numJobs))
 
   relLibTargetDir <- makeRelativeToCurrentDirectory libTargetDir
 
@@ -661,7 +662,8 @@ buildOrReplLib mReplFlags verbosity numJobs pkg_descr lbi lib clbi = do
   -- Build any C++ sources separately.
   unless (not has_code || null (cxxSources libBi)) $ do
     info verbosity "Building C++ Sources..."
-    sequence_
+    putStrLn $ "NUMJOBS: " ++ show numJobs
+    jobsSequence_
       [ do let baseCxxOpts    = Internal.componentCxxGhcOptions verbosity implInfo
                                 lbi libBi clbi relLibTargetDir filename
                vanillaCxxOpts = if isGhcDynamic

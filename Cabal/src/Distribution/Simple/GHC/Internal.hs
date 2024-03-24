@@ -625,9 +625,7 @@ componentCmmGhcOptions verbosity lbi bi clbi odir filename =
     , ghcOptInputFiles = toNubListR [filename]
     , ghcOptCppIncludePath =
         toNubListR $
-          [ autogenComponentModulesDir lbi clbi
-          , autogenPackageModulesDir lbi
-          , odir
+          [ 
           ]
             -- includes relative to the package
             ++ includeDirs bi
@@ -637,7 +635,7 @@ componentCmmGhcOptions verbosity lbi bi clbi odir filename =
     , ghcOptCppOptions = cppOptions bi
     , ghcOptCppIncludes =
         toNubListR $
-          [autogenComponentModulesDir lbi clbi </> cppHeaderName]
+          []
     , ghcOptHideAllPackages = toFlag True
     , ghcOptPackageDBs = withPackageDB lbi
     , ghcOptPackages = toNubListR $ mkGhcOptPackages (promisedPkgs lbi) clbi
